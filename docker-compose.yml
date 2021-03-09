@@ -1,0 +1,63 @@
+version: "3.9"
+
+services:
+  clash:
+    profiles: ["reverse-proxy-clash"]
+  app:
+    build:       
+      context: ./dir
+      dockerfile: Dockerfile-alternate
+      args:
+        hostname: "keine.shop"
+        outputDir: "/var/tmp"
+    command: bash -c "while ! curl -s rabbitmq:5672 > /dev/null; do echo waiting for xxx; sleep 3; done; start.sh"
+    restart: on-failure
+    expose:
+      - "3000"
+      - "8000"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "200k"
+        max-file: "10"
+    restart: 
+      unless-stopped
+  db:
+    env_file:
+      - ./common.env
+      - ./apps/web.env
+      - /opt/runtime_opts.env
+    environment:
+      MYSQL_ROOT_PASSWORD_FILE: /run/secrets/db_root_password
+      MYSQL_DATABASE: wordpress
+      MYSQL_USER: wordpress
+      MYSQL_PASSWORD_FILE: /run/secrets/db_password
+    image: mysql:latest
+    volumes:
+      - db_data:/var/lib/mysql
+
+    secrets:
+      - db_root_password
+      - db_password
+
+  wordpress:
+    depends_on:
+      - db
+    image: wordpress:latest
+    ports:
+      - "8000:80"
+    environment:
+      WORDPRESS_DB_HOST: db:3306
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD_FILE: /run/secrets/db_password
+    secrets:
+      - db_password
+
+secrets:
+  db_password:
+    file: db_password.txt
+  db_root_password:
+    file: db_root_password.txt
+
+volumes:
+    db_data:
