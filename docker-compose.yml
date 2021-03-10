@@ -1,57 +1,45 @@
 version: "3.9"
 
 services:
-  clash:
-    profiles: ["reverse-proxy-clash"]
-  app:
-    build:       
-      context: ./dir
-      dockerfile: Dockerfile-alternate
+  caddy:
+    build:
+      context: ./caddy
+      dockerfile: ./caddy/Dockerfile
       args:
-        hostname: "keine.shop"
-        outputDir: "/var/tmp"
-    command: bash -c "while ! curl -s rabbitmq:5672 > /dev/null; do echo waiting for xxx; sleep 3; done; start.sh"
-    restart: on-failure
-    expose:
-      - "3000"
-      - "8000"
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "200k"
-        max-file: "10"
-    restart: 
-      unless-stopped
-  db:
-    env_file:
-      - ./common.env
-      - ./apps/web.env
-      - /opt/runtime_opts.env
-    environment:
-      MYSQL_ROOT_PASSWORD_FILE: /run/secrets/db_root_password
-      MYSQL_DATABASE: wordpress
-      MYSQL_USER: wordpress
-      MYSQL_PASSWORD_FILE: /run/secrets/db_password
-    image: mysql:latest
-    volumes:
-      - db_data:/var/lib/mysql
-
-    secrets:
-      - db_root_password
-      - db_password
-
-  wordpress:
-    depends_on:
-      - db
-    image: wordpress:latest
+        domain: "${${domain}:+keine.shop}",
+        redir_host: ,
+        auth_host: 
+    restart: unless-stopped
     ports:
-      - "8000:80"
-    environment:
-      WORDPRESS_DB_HOST: db:3306
-      WORDPRESS_DB_USER: wordpress
-      WORDPRESS_DB_PASSWORD_FILE: /run/secrets/db_password
-    secrets:
-      - db_password
+      - "80:80"
+      - "443:443"
+    # profiles: ["reverse-proxy-caddy"]
+    environment: 
+      - LOG_PATH=/log
+      - ROOT=/var/www/${${domain}:+keine.shop}
+    volumes:
+      - ${pwd}/assets/:/var/www/
+      - /var/log/docker_apps/caddy:/log
+      - caddy_data:/data       # named volume
+      - caddy_config:/config   # named volume
+    networks: 
+      - frontend
+  smtp:
+    restart: on-failure
+    build:
+      context: ./mail-server
+      dockerfile: ./mail-server/Dockerfile
+      args:
+        domain: "${${domain}:+keine.shop}"
+        output_dir: /home/node/app/
+    ports:
+      - "587:587"
+    volumes: 
+      - ssl_data:/home/node/app/ssl/   # named volume, external
+    networks: 
+      - backend
+  db:
+
 
 secrets:
   db_password:
@@ -60,4 +48,11 @@ secrets:
     file: db_root_password.txt
 
 volumes:
-    db_data:
+  caddy_data:
+  caddy_config:
+  ssl_data:
+    external: true 
+
+networks: 
+  frontend:
+  backend:
