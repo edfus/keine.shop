@@ -94,11 +94,6 @@ class TorrentAgent {
 
   //TODO: client.add - no filesystem id allowed
   help () {
-    fs.readFileSync(path.join(__dirname, 'ascii-logo.txt'), 'utf8')
-    .split('\n')
-    .forEach(line => clivas.line(
-      `{bold:${line.substring(0, 20)}}{red:${line.substring(20)}}`));
-
     console.log(`
       Usage:
         webtorrent [command] <torrent-id> <options>
