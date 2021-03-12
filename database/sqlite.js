@@ -6,12 +6,22 @@ const weakDBMap = new WeakMap();
 sqlite3.verbose();
 
 class SQLMap {
-  constructor(sql, db, tableName) {
+  constructor(sql, db, tableName, options = {}) {
     weakDBMap.set(this, db);
     this.sql = sql;
     this.name = tableName;
 
-    this.cacheMap = new Map(); // not persisted
+    const cacheEnabled = "cache" in options ? Boolean(options.cache) : true;
+
+    this.cacheMap = (
+      cacheEnabled
+      ? new Map()
+      : new class extends Map {
+        has () { return false; }
+        set () { return void 0; }
+        delete () { return void 0; }
+      }
+    );
 
     setInterval(() => {
       const dateNow = Date.now();
@@ -22,7 +32,7 @@ class SQLMap {
           this.cacheMap.delete(key);
         }
       })
-    }, 1000 * 60 * 60 * 6); // every 6 hours
+    }, 1000 * 60 * 60 * 6).unref(); // every 6 hours
   }
 
   close () {
@@ -52,7 +62,9 @@ class SQLMap {
       db.get(
         `SELECT EXISTS(SELECT 1 FROM ${this.name} WHERE id = ? LIMIT 1);`,
         [ id ],
-        (err, exists) => err ? reject(err) : resolve(Boolean(exists))
+        (err, exists) => err ? reject(err) : resolve(
+          Boolean(exists[Object.keys(exists)[0]])
+        )
       );
     });
   }
@@ -75,7 +87,21 @@ class SQLMap {
             return reject(err)
 
           try {
-            resolve(JSON.parse(value))
+            const bigintPattern = /^[0-9]+n$/
+            resolve(
+              JSON.parse(
+                value, 
+                (key, value) => {
+                  if(typeof(value) === "string") {
+                    if(bigintPattern.test(value))
+                      return BigInt(value.slice(0, value.length - 1));
+                    if(value === "Infinity")
+                      return Infinity;
+                  }
+                  return value;
+                }
+              )
+            )
           } catch (err) {
             const error = new Error(
               `Error while parsing value ${(await import("util")).inspect(value)} for id ${id}`
@@ -105,18 +131,26 @@ class SQLMap {
       db.run(
         `INSERT INTO ${this.name} (id, value) VALUES (?, json(?))`
         +' ON CONFLICT(id) DO UPDATE SET value=excluded.value;',
-        [ id, JSON.stringify(value) || null ],
+        [ 
+          id,
+          JSON.stringify(
+            value,
+            (key, value) => {
+              if(typeof value === 'bigint')
+                return value.toString().concat("n");
+              else if (typeof value === 'number' && !isFinite(value))
+                return "Infinity";
+              else return value;
+            }
+          ) || null 
+        ],
         err => err ? reject(err) : resolve()
       );
     });
   }
   
   async delete(id) {
-    this.cacheMap.delete(id, {
-      value,
-      count: 0,
-      created: Date.now()
-    });
+    this.cacheMap.delete(id);
 
     const db = weakDBMap.get(this);
 
@@ -247,7 +281,7 @@ class SQLite {
   }
 
   async init() {
-    if (!existsSync(this.location.dir)) {
+    if (!this.location.path.startsWith(":") && !existsSync(this.location.dir)) {
       await new Promise((resolve, reject) => {
         mkdir(
           this.location.dir,
@@ -284,7 +318,7 @@ class SQLite {
   }
 
   // https://github.com/mapbox/node-sqlite3/issues/40
-  async getMap(mapName) {
+  async getMap(mapName, options) {
     const db = weakDBMap.get(this).db;
 
     mapName = mapName.replace(
@@ -301,7 +335,7 @@ class SQLite {
       );
     });
 
-    const map = new SQLMap(this, db, mapName);
+    const map = new SQLMap(this, db, mapName, options);
 
     this.tables.push(map);
 
