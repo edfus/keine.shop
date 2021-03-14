@@ -143,6 +143,14 @@ describe("sqlite3", () => {
     ok((await db.getMap("test")).getSize());
   });
 
+  it("on conflict update", async () => {
+    const map = await db.getMap("test");
+    const id = uuid();
+    await map.set(id, "will be overridden");
+    await map.set(id, "allied nations");
+    strictEqual(await map.get(id), "allied nations");
+  });
+
   it("iteration", async () => {
     const result = [[], []]
     for await (const [key, value] of (await db.getMap("test")).entries()) {
