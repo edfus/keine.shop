@@ -1,6 +1,3 @@
-#!/usr/bin/env node
-'use strict';
-
 /**
  * derived from webtorrent-cli
  */
@@ -93,7 +90,7 @@ class TorrentAgent {
   }
 
   //TODO: client.add - no filesystem id allowed
-  help () {
+  #help () {
     console.log(`
       Usage:
         webtorrent [command] <torrent-id> <options>
@@ -132,22 +129,22 @@ class TorrentAgent {
     `);
   }
 
+  /**
+   * https://github.com/webtorrent/parse-torrent
+   */
   info(torrentId) {
     let parsedTorrent;
   
     try {
       parsedTorrent = parseTorrent(torrentId);
+      if (!parsedTorrent.infoHash)
+        throw new Error("!parsedTorrent.infoHash"); //NOTE
     } catch (err) {
-      errorAndExit(err);
+      return {
+        _parseSucceeded: false,
+        _error: err
+      }
     }
-  
-    // if (!parsedTorrent.infoHash) {
-    //   try {
-    //     parsedTorrent = parseTorrent(fs.readFileSync(torrentId));
-    //   } catch (err) {
-    //     return
-    //   }
-    // }
   
     delete parsedTorrent.info;
     delete parsedTorrent.infoBuffer;
@@ -155,29 +152,12 @@ class TorrentAgent {
   
     const output = JSON.stringify(parsedTorrent, undefined, 2);
     //TODO
-
-    // if (argv.out) {
-    //   fs.writeFileSync(argv.out, output);
-    // } else {
-    //   process.stdout.write(output);
-    // }
   }
 
   create(input, options) {
     createTorrent(
       input,
-      // {
-      //   name: ,             // name of the torrent (default = basename of `path`, or 1st file's name)
-      //   comment: ,          // free-form textual comments of the author
-      //   createdBy: 'WebTorrent <https://webtorrent.io>',        // name and version of program used to create torrent
-      //   creationDate: ,     // creation time in UNIX epoch format (default = now)
-      //   filterJunkFiles: , // remove hidden and other junk files? (default = true)
-      //   private: ,         // is this a private .torrent? (default = false)
-      //   pieceLength: ,      // force a custom piece length (number of bytes)
-      //   announceList: , // custom trackers (array of arrays of strings) (see [bep12](http://www.bittorrent.org/beps/bep_0012.html))
-      //   urlList: ,        // web seed urls (see [bep19](http://www.bittorrent.org/beps/bep_0019.html))
-      //   info:               // add non-standard info dict entries, e.g. info.source, a convention for cross-seeding 
-      // },
+      options,
       (err, torrent) => {
         if (err) {
           return errorAndExit(err);
@@ -543,6 +523,8 @@ class TorrentAgent {
     }
   }
 }
+
+module.exports = TorrentAgent;
 
 let drawInterval;
 
