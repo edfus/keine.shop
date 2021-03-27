@@ -170,7 +170,7 @@ class SQLMap {
   }
 
   [Symbol.iterator] () {
-    return this.entries;
+    return this.entries();
   }
 
   async * keys () {

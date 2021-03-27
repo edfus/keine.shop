@@ -1,4 +1,4 @@
-import SQLite3 from "../sqlite.js";
+import SQLite3 from "../better-sqlite.js";
 import UUID from "./uuid.js";
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
@@ -56,8 +56,8 @@ const data = {
   ]
 };
 
-describe("sqlite3", () => {
-  const db = new SQLite3(join(__dirname, "./test.tmp.db"));
+describe("better-sqlite3", () => {
+  const db = new SQLite3(join(__dirname, "./test.2.tmp.db"));
   // const db = new SQLite3(":memory:");
   const uuid = new UUID().toString;
 
