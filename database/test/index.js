@@ -1,4 +1,5 @@
 import SQLite3 from "../sqlite.js";
+import BetterSQLite3 from "../better-sqlite.js";
 import UUID from "./uuid.js";
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
@@ -57,8 +58,16 @@ const data = {
 };
 
 describe("sqlite3", () => {
-  const db = new SQLite3(join(__dirname, "./test.tmp.db"));
-  // const db = new SQLite3(":memory:");
+  test(new SQLite3(join(__dirname, "./test.tmp.db")))
+});
+
+describe("better-sqlite3", () => {
+  test(new BetterSQLite3(join(__dirname, "./test.2.tmp.db")))
+});
+
+
+function test (dbInstance) {
+  const db = dbInstance;
   const uuid = new UUID().toString;
 
   before(db.init.bind(db));
@@ -151,17 +160,6 @@ describe("sqlite3", () => {
     strictEqual(await map.get(id), "allied nations");
   });
 
-  it("iteration", async () => {
-    const result = [[], []]
-    for await (const [key, value] of (await db.getMap("test")).entries()) {
-      result[0].push(`${key} ${value}`);
-    }
-
-    await (await db.getMap("test")).forEach((value, key) => result[1].push(`${key} ${value}`));
-
-    deepStrictEqual(result[0], result[1]);
-  });
-
   it("#has", async () => {
     const map = await db.getMap("test-prototype", { cache: false });
     const id = 1;
@@ -182,4 +180,16 @@ describe("sqlite3", () => {
     await map.delete(id);
     strictEqual(await map.has(id), false);
   });
-});
+
+  it("iteration", async () => {
+    const result = [[], []]
+    for await (const [key, value] of (await db.getMap("test")).entries()) {
+      ok(key != null && value != null);
+      result[0].push(`${key} ${value}`);
+    }
+
+    await (await db.getMap("test")).forEach((value, key) => result[1].push(`${key} ${value}`));
+
+    deepStrictEqual(result[0], result[1]);
+  });
+}
